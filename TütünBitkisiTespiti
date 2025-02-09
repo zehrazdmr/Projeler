@@ -1,0 +1,93 @@
+"""
+Bu proje, uydu görüntüleri ve görüntü işleme teknikleri kullanılarak tütün bitkilerinin tespiti ve sınıflandırılmasını hedeflemektedir. 
+Geleneksel tarımsal analiz yöntemlerinin aksine, uzaktan algılama ve yapay zeka tabanlı sınıflandırma kullanılarak daha hızlı, 
+maliyet etkin ve geniş ölçekli bir tarımsal analiz yapılması amaçlanmıştır."""
+
+
+import ee
+import geemap
+ee.Authenticate()
+ee.Initialize(project='yourprojectkey')
+
+# Sentinel-2 veri kümesi
+region = ee.Geometry.Point([38.23,38.03])
+
+collection = ee.ImageCollection('COPERNICUS/S2') \
+    .filterDate('2022-05-10', '2022-09-20') \
+    .filterBounds(region) \
+    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
+
+# Median (ortalama) alınarak birleştirilmiş görüntü
+sentinel2_median = collection.median()
+
+# Özellik hesaplama fonksiyonu
+def calculate_features(image):
+    ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI')  # NDVI
+    ndwi = image.normalizedDifference(['B8', 'B11']).rename('NDWI')  # NDWI
+    chlorophyll = image.select('B5').divide(image.select('B4')).rename('Chlorophyll')  # Klorofil yoğunluğu
+    nir_absorption = image.select('B8').rename('NIR_Absorption')  # NIR absorpsiyonu
+    return image.addBands([ndvi, ndwi, chlorophyll, nir_absorption])
+
+# Koleksiyona özellikleri ekleme
+features_collection = collection.map(calculate_features)
+median_image = features_collection.median()
+
+#Eğitim Verisi(Tütün Alanları ve Tütün Olmayan Alanlar)
+training_data =ee.FeatureCollection([
+    ee.Feature(ee.Geometry.Polygon([[38.2176, 38.0260], [38.2179, 38.0257], [38.2180, 38.0260], [38.2181, 38.0259]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2178, 38.0257], [38.2175, 38.0260], [38.2172, 38.0258], [38.2176, 38.0256]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2178, 38.0257], [38.2170, 38.0259], [38.2167, 38.0257], [38.2173, 38.0254]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2172, 38.0254], [38.2170, 38.0255], [38.2164, 38.0250], [38.2166, 38.0249]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2169, 38.0255], [38.2167, 38.0257], [38.2160, 38.0252], [38.2163, 38.0251]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2159, 38.0252], [38.2156, 38.0253], [38.2160, 38.0257], [38.2164, 38.0255]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2154, 38.0253], [38.2152, 38.0254], [38.2172, 38.0262], [38.2162, 38.0260]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2152, 38.0256], [38.2149, 38.0257], [38.2147, 38.0255], [38.2150, 38.0255]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2150, 38.0260], [38.2154, 38.0259], [38.2153, 38.0257], [38.2149, 38.0258]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2154, 38.0260], [38.2151, 38.0261], [38.2153, 38.0265], [38.2156, 38.0263]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2146, 38.0255], [38.2149, 38.0259], [38.2146, 38.0260], [38.2145, 38.0257]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2149, 38.0260], [38.2146, 38.0260], [38.2148, 38.0264], [38.2151, 38.0263]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2151, 38.0264], [38.2148, 38.0265], [38.2150, 38.0268], [38.2153, 38.0267]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2501, 38.0334], [38.2504, 38.0335], [38.2505, 38.0333], [38.2502, 38.0332]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2502, 38.0330], [38.2503, 38.0328], [38.2507, 38.0332], [38.2508, 38.0331]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2491, 38.0330], [38.2494, 38.0330], [38.2495, 38.0329], [38.2491, 38.0329]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2487, 38.0331], [38.2488, 38.0330], [38.2486, 38.0327], [38.2484, 38.0328]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2481, 38.0322], [38.2480, 38.0323], [38.2479, 38.0319], [38.2478, 38.0319]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2472, 38.0317], [38.2470, 38.0316], [38.2469, 38.0318], [38.2468, 38.0316]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2465, 38.0312], [38.2468, 38.0312], [38.2468, 38.0310], [38.2465, 38.0310]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2451, 38.0322], [38.2454, 38.0322], [38.2455, 38.0320], [38.2452, 38.0320]]), {'label': 1}),
+    ee.Feature(ee.Geometry.Polygon([[38.2460, 38.0315], [38.2458, 38.0311], [38.2449, 38.0311], [38.2450, 38.0314]]), {'label': 0}),
+    ee.Feature(ee.Geometry.Polygon([[38.2485, 38.0315], [38.2491, 38.0316], [38.2491, 38.0314], [38.2485, 38.0313]]), {'label': 0}),
+    ee.Feature(ee.Geometry.Polygon([[38.2484, 38.0312], [38.2488, 38.0311], [38.2490, 38.0306], [38.2486, 38.0308]]), {'label': 0}),
+    ee.Feature(ee.Geometry.Polygon([[38.2536, 38.0318], [38.2540, 38.0318], [38.2540, 38.0316], [38.2535, 38.0316]]), {'label': 0}),
+    ee.Feature(ee.Geometry.Polygon([[38.2534, 38.0311], [38.2539, 38.0310], [38.2537, 38.0308], [38.2534, 38.0309]]), {'label': 0}),
+    ee.Feature(ee.Geometry.Polygon([[38.2523, 38.0309], [38.2530, 38.0309], [38.2532, 38.0305], [38.2525, 38.0304]]), {'label': 0}),
+    ee.Feature(ee.Geometry.Polygon([[38.2294, 38.0247], [38.2300, 38.0230], [38.2282, 38.0230], [38.2282, 38.0243]]), {'label': 0}),
+    ee.Feature(ee.Geometry.Polygon([[38.2295, 38.0410], [38.2303, 38.0407], [38.2296, 38.0398], [38.2287, 38.0401]]), {'label': 0}),
+    ee.Feature(ee.Geometry.Polygon([[38.2255, 38.0370], [38.2255, 38.0360], [38.2275, 38.0360], [38.2275, 38.0370]]), {'label': 0}),
+    ee.Feature(ee.Geometry.Polygon([[38.2146, 38.0340], [38.2163, 38.0343], [38.2144, 38.0347], [38.2159, 38.0350]]), {'label': 0}),
+    ee.Feature(ee.Geometry.Polygon([[38.2139, 38.0367], [38.2153, 38.0367], [38.2155, 38.0361], [38.2143, 38.0360]]), {'label': 0}),
+])
+
+# Eğitim verisi için özellikleri örnekleme
+training_samples = median_image.sampleRegions(
+    collection=training_data,
+    properties=['label'],
+    scale=10
+)
+
+# Random Forest sınıflandırıcıyı eğitme
+classifier = ee.Classifier.smileRandomForest(100).train(
+    features=training_samples,
+    classProperty='label',
+    inputProperties=['NDVI', 'NDWI', 'Chlorophyll', 'NIR_Absorption']
+)
+
+# Görüntüyü sınıflandırma
+classified_image = median_image.classify(classifier)
+
+# Harita üzerinde görselleştirme
+Map = geemap.Map()
+Map.centerObject(training_data, 10)
+Map.addLayer(classified_image, {'min': 0, 'max': 1, 'palette': ['red', 'green']}, 'Sınıflandırılmış Alanlar')
+Map.addLayer(training_data, {'color': '000000'}, 'Eğitim Verileri')
+Map
