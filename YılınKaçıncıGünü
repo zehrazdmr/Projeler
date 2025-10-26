@@ -1,0 +1,5 @@
+import datetime
+t=datetime.datetime.today()
+tarih = datetime.datetime.strftime(t, '%j')
+print(t.day,"/",t.month,"/",t.year)
+print("Bugun yilin",tarih,". gunu. Herkese iyi gunler dileriz.")
